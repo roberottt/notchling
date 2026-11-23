@@ -28,7 +28,19 @@ You start a long task in Claude Code, switch to something else, and come back te
 
 ## Install
 
-Requires macOS 14 or later and the Command Line Tools (`xcode-select --install`). Xcode is not needed.
+### Download
+
+Grab `Notchling.zip` from the [latest release](https://github.com/roberottt/notchling/releases/latest), unzip it and move `Notchling.app` to your Applications folder. Requires macOS 14 or later, on Apple silicon or Intel.
+
+The app isn't notarized yet, so macOS blocks it the first time. Open it once, then go to **System Settings → Privacy & Security** and click **Open Anyway**. Or, from Terminal:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Notchling.app
+```
+
+### Build from source
+
+Requires the Command Line Tools (`xcode-select --install`). Xcode is not needed.
 
 ```sh
 git clone https://github.com/roberottt/notchling.git
@@ -72,7 +84,9 @@ Turn on **Approve permissions from the island** in the menu and Notchling adds a
 - **Terminal** hands the question back to Claude Code, as if Notchling weren't there.
 - If Notchling is closed, or you don't answer within 45 seconds, Claude Code asks in the terminal as usual. Nothing ever gets stuck.
 
-Questions and plan reviews always stay in Claude Code, where you can read them properly. Turn the option off and the hook is removed, leaving the rest of your settings untouched.
+You only ever approve what you can read in full: a card under the island shows the complete request, and each button answers that exact request. The island handles single-line commands, file reads, URLs and web searches. Everything else goes straight to Claude Code, where you can see it properly: multi-line or very long commands, file edits (the terminal shows the diff), MCP tools, questions and plan reviews. Answering from a notification requires the Mac to be unlocked.
+
+Turn the option off and the hook is removed, leaving the rest of your settings untouched.
 
 ## Using it
 
@@ -123,6 +137,10 @@ build/Notchling.app/Contents/MacOS/Notchling --dump   # prints what the detector
 ## Contributing
 
 Issues and pull requests are welcome. Every PR is reviewed and approved by the maintainer before it's merged.
+
+## License
+
+[MIT](LICENSE)
 
 ---
 

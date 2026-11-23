@@ -34,7 +34,10 @@ final class PreviewPanel {
         body.font = .systemFont(ofSize: 12.5)
         body.textColor = NSColor(white: 0.92, alpha: 1)
         body.maximumNumberOfLines = 12
-        body.lineBreakMode = .byTruncatingTail
+        // Truncar por el final convierte la etiqueta en una sola línea: se parte por palabras
+        // y solo se recorta la última línea visible si no cabe.
+        body.lineBreakMode = .byWordWrapping
+        body.cell?.truncatesLastVisibleLine = true
         view.addSubview(title)
         view.addSubview(body)
     }

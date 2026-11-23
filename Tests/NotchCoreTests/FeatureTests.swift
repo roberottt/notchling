@@ -152,3 +152,21 @@ import Testing
     #expect(PermissionHook.ask(request: request, socket: path, wait: 5) == .deny)
     #expect(String(cString: received).contains("rm -rf build"))
 }
+
+@Test func onlyFullyShownRequestsReachTheIsland() {
+    #expect(PermissionHook.fullText(tool: "Bash", input: ["command": "npm test"]) != nil)
+    #expect(PermissionHook.fullText(tool: "Bash", input: ["command": "cat <<EOF\nrm -rf /\nEOF"]) == nil)
+    #expect(PermissionHook.fullText(tool: "Bash", input: ["command": String(repeating: "a", count: 401)]) == nil)
+    #expect(PermissionHook.fullText(tool: "Edit", input: ["file_path": "/a/b.swift"]) == nil)
+    #expect(PermissionHook.fullText(tool: "mcp__github__create_issue", input: [:]) == nil)
+    #expect(PermissionHook.fullText(tool: "WebFetch", input: ["url": "https://example.com/a?b=c"])?
+        .contains("https://example.com/a?b=c") == true)
+}
+
+@Test func hiddenRequestsGoStraightToTheTerminal() {
+    // Ni siquiera intenta hablar con la app.
+    let multiline = line(["session_id": "s", "tool_name": "Bash", "tool_input": ["command": "echo a\necho b"]])
+    #expect(PermissionHook.ask(request: multiline, socket: "/nonexistent/socket") == .ask)
+    let edit = line(["session_id": "s", "tool_name": "Write", "tool_input": ["file_path": "/a", "content": "x"]])
+    #expect(PermissionHook.ask(request: edit, socket: "/nonexistent/socket") == .ask)
+}

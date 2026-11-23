@@ -10,6 +10,8 @@ final class PermissionBroker {
         let id = UUID()
         let sessionID: String
         let text: String
+        /// Completo, sin recortar: es lo que se aprueba.
+        let fullText: String
         let arrived = Date()
         fileprivate let source: DispatchSourceRead
         fileprivate let fd: Int32
@@ -99,11 +101,18 @@ final class PermissionBroker {
             return
         }
         let input = object["tool_input"] as? [String: Any] ?? [:]
+        // El hook ya filtra, pero la app no se fía: lo que no se puede enseñar entero va a la terminal.
+        guard let full = PermissionHook.fullText(tool: tool, input: input) else {
+            _ = "ask\n".withCString { send(fd, $0, 4, 0) }
+            close(fd)
+            return
+        }
 
         // Si el hook se cierra (tiempo agotado o respuesta en la terminal), el socket se vuelve legible con 0 bytes.
         let source = DispatchSource.makeReadSource(fileDescriptor: fd, queue: .main)
         let request = Request(
-            sessionID: session, text: PermissionHook.describe(tool: tool, input: input), source: source, fd: fd)
+            sessionID: session, text: PermissionHook.describe(tool: tool, input: input), fullText: full,
+            source: source, fd: fd)
         let id = request.id
         source.setEventHandler { [weak self] in
             var byte: UInt8 = 0

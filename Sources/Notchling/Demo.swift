@@ -27,6 +27,7 @@ enum Demo {
                 "I've moved payments to the new API. Refunds and the integration tests are still left. Shall I continue with those?"))
         // Así se ven los botones de un permiso, aunque en la demo no hacen nada.
         main.awaitingDecision = step.state == .permission
+        if main.awaitingDecision { main.requestText = step.detail }
         return [
             main,
             Session(

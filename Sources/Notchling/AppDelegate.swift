@@ -134,6 +134,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             incoming[index].detail = request.text
             incoming[index].since = request.arrived
             incoming[index].awaitingDecision = true
+            incoming[index].pendingRequest = request.id
+            incoming[index].requestText = request.fullText
         }
         // Peticiones de sesiones que no se ven (otra carpeta de configuración...): a la terminal.
         let known = Set(raw.compactMap(\.sessionID))
@@ -177,8 +179,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let front = NSWorkspace.shared.frontmostApplication
         let sound = preferences.notificationSound
         for session in alerts where hosts.app(for: session) != front {
-            let request = session.awaitingDecision ? broker.request(for: session.sessionID)?.id : nil
-            notifier.needsYou(session, request: request, sound: sound)
+            notifier.needsYou(session, request: session.pendingRequest, sound: sound)
         }
         for session in finished where hosts.app(for: session) != front {
             notifier.finished(session, sound: sound)
@@ -189,17 +190,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         tracker.acknowledge(session.id)
         notifier.clear(session)
         // Ir a la sesión con un permiso pendiente: que pregunte allí.
-        if session.awaitingDecision, let request = broker.request(for: session.sessionID) {
-            broker.decide(request.id, .ask)
-        }
+        if let request = session.pendingRequest { broker.decide(request, .ask) }
         hosts.activate(session)
         receive(latest)
     }
 
+    /// Decide justo la petición que se estaba viendo; si ya no está pendiente, no hace nada.
     private func decide(_ session: Session, _ decision: PermissionHook.Decision) {
-        guard let request = broker.request(for: session.sessionID) else { return }
+        guard let request = session.pendingRequest else { return }
         notifier.clear(session)
-        broker.decide(request.id, decision)
+        broker.decide(request, decision)
         if decision == .ask { hosts.activate(session) }
     }
 

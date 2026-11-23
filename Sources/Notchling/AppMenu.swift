@@ -113,7 +113,7 @@ enum AppMenu {
         menu.addItem(ActionItem(tr("Ir a la sesión", "Go to session")) { actions.select(session) })
         if session.awaitingDecision {
             menu.addItem(.separator())
-            let heading = NSMenuItem(title: session.detail, action: nil, keyEquivalent: "")
+            let heading = NSMenuItem(title: session.requestText ?? session.detail, action: nil, keyEquivalent: "")
             heading.isEnabled = false
             menu.addItem(heading)
             menu.addItem(ActionItem(tr("Permitir", "Allow")) { actions.decide(session, .allow) })

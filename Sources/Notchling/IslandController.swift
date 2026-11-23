@@ -170,8 +170,11 @@ final class IslandController: IslandViewDelegate {
     /// La vista previa sale tras un momento sobre la misma fila y sigue a la isla mientras se repinta.
     private func updatePreview() {
         let visible = visibleSessions()
-        guard expanded, !menuOpen, drag == nil, let row = hoveredRow, row < visible.count,
-              let layout = current?.layout, let text = visible[row].lastMessage, !text.isEmpty
+        // Un permiso pendiente se enseña entero sin tener que pasar por encima: es lo que se aprueba.
+        let hovered = hoveredRow.flatMap { $0 < visible.count ? visible[$0] : nil }
+        let target = hovered ?? visible.first(where: \.awaitingDecision)
+        let text = target.flatMap { $0.awaitingDecision ? $0.requestText : $0.lastMessage }
+        guard expanded, !menuOpen, drag == nil, let target, let layout = current?.layout, let text, !text.isEmpty
         else {
             previewWork?.cancel()
             previewWork = nil
@@ -179,17 +182,26 @@ final class IslandController: IslandViewDelegate {
             preview.hide()
             return
         }
-        let session = visible[row]
-        let heading = session.title.map { "\(session.project) · \($0)" } ?? session.project
+        let session = target
+        var heading = session.title.map { "\(session.project) · \($0)" } ?? session.project
+        if session.awaitingDecision { heading += " — " + SessionState.permission.label }
         let show = { [weak self] in
             self?.preview.show(
                 heading: heading, text: text, anchor: layout.expanded, upward: layout.opensUpward, screen: layout.screen)
         }
-        if previewFor == session.id {
+        let key = session.id + (session.awaitingDecision ? "#decision" : "")
+        if previewFor == key {
             if previewWork == nil { show() }
             return
         }
-        previewFor = session.id
+        if session.awaitingDecision {
+            previewWork?.cancel()
+            previewWork = nil
+            previewFor = key
+            show()
+            return
+        }
+        previewFor = key
         previewWork?.cancel()
         preview.hide()
         let work = DispatchWorkItem { [weak self] in

@@ -37,9 +37,31 @@ public enum PermissionHook {
         return try? JSONSerialization.data(withJSONObject: output)
     }
 
-    /// Texto de la petición, igual que el que se ve en la isla para un permiso.
+    /// Texto corto de la petición, el de la fila de la isla.
     public static func describe(tool: String, input: [String: Any]) -> String {
         ToolCall(id: "", name: tool, input: input).permissionText
+    }
+
+    /// Lo más largo que se acepta aprobar desde la isla: cabe entero en la tarjeta.
+    public static let maxShown = 400
+
+    /// La petición completa, tal cual, si se puede enseñar entera. `nil` la manda a la terminal:
+    /// comandos de varias líneas o muy largos, ediciones (la terminal enseña el diff) y herramientas
+    /// cuya entrada no se puede resumir sin perder algo.
+    public static func fullText(tool: String, input: [String: Any]) -> String? {
+        func value(_ key: String) -> String? {
+            guard let text = input[key] as? String, !text.isEmpty, text.count <= maxShown,
+                  !text.contains(where: \.isNewline)
+            else { return nil }
+            return text
+        }
+        switch tool {
+        case "Bash", "PowerShell": return value("command").map { tr("Ejecutar: \($0)", "Run: \($0)") }
+        case "Read": return value("file_path").map { tr("Leer \($0)", "Read \($0)") }
+        case "WebFetch": return value("url").map { tr("Acceder a \($0)", "Access \($0)") }
+        case "WebSearch": return value("query").map { tr("Buscar en la web: \($0)", "Search the web: \($0)") }
+        default: return nil
+        }
     }
 
     // MARK: - Cliente (el proceso que lanza Claude Code)
@@ -48,6 +70,7 @@ public enum PermissionHook {
     public static func ask(request: Data, socket path: String = socketPath, wait: TimeInterval = wait) -> Decision {
         guard let object = (try? JSONSerialization.jsonObject(with: request)) as? [String: Any],
               let tool = object["tool_name"] as? String, !skipped.contains(tool),
+              fullText(tool: tool, input: object["tool_input"] as? [String: Any] ?? [:]) != nil,
               let line = try? JSONSerialization.data(withJSONObject: object)
         else { return .ask }
 

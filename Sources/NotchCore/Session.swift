@@ -74,6 +74,10 @@ public struct Session: Identifiable, Equatable, Encodable, Sendable {
     public var muted = false
     /// Hay un permiso esperando respuesta desde la isla.
     public var awaitingDecision = false
+    /// La petición concreta que enseñan los botones: decidir otra distinta no vale.
+    public var pendingRequest: UUID?
+    /// El texto completo de esa petición.
+    public var requestText: String?
 
     public init(
         id: String, pid: Int32, project: String, title: String? = nil, state: SessionState,

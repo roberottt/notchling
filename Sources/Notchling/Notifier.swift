@@ -27,9 +27,11 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
 
     /// Los textos de los botones van con el idioma: se registran de nuevo al cambiarlo.
     func registerCategories() {
-        let allow = UNNotificationAction(identifier: Self.allowAction, title: tr("Permitir", "Allow"))
+        // Con el Mac bloqueado, contestar pide desbloquearlo antes.
+        let allow = UNNotificationAction(
+            identifier: Self.allowAction, title: tr("Permitir", "Allow"), options: [.authenticationRequired])
         let deny = UNNotificationAction(
-            identifier: Self.denyAction, title: tr("Denegar", "Deny"), options: [.destructive])
+            identifier: Self.denyAction, title: tr("Denegar", "Deny"), options: [.destructive, .authenticationRequired])
         center?.setNotificationCategories([
             UNNotificationCategory(identifier: Self.permissionCategory, actions: [allow, deny], intentIdentifiers: []),
         ])
@@ -38,7 +40,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     func needsYou(_ session: Session, request: UUID?, sound: Bool) {
         let content = UNMutableNotificationContent()
         content.title = "\(session.project) — \(session.state.label)"
-        content.body = session.detail
+        content.body = session.requestText ?? session.detail
         if let request {
             content.categoryIdentifier = Self.permissionCategory
             content.userInfo["request"] = request.uuidString
