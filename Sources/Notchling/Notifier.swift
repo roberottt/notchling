@@ -41,7 +41,8 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         let content = UNMutableNotificationContent()
         content.title = "\(session.project) — \(session.state.label)"
         content.body = session.requestText ?? session.detail
-        if let request {
+        // Los botones solo si el texto entero cabe en el aviso; si no, se contesta donde se lee entero.
+        if let request, let text = session.requestText, text.unicodeScalars.count <= PermissionHook.maxNotified {
             content.categoryIdentifier = Self.permissionCategory
             content.userInfo["request"] = request.uuidString
         }

@@ -50,8 +50,8 @@ public enum PermissionHook {
     /// cuya entrada no se puede resumir sin perder algo.
     public static func fullText(tool: String, input: [String: Any]) -> String? {
         func value(_ key: String) -> String? {
-            guard let text = input[key] as? String, !text.isEmpty, text.count <= maxShown,
-                  !text.contains(where: \.isNewline)
+            guard let text = input[key] as? String, !text.isEmpty, text.unicodeScalars.count <= maxShown,
+                  text.unicodeScalars.allSatisfy(isPlain)
             else { return nil }
             return text
         }
@@ -63,6 +63,22 @@ public enum PermissionHook {
         default: return nil
         }
     }
+
+    /// Lo que se ve es lo que se ejecuta: fuera caracteres de control, invisibles o que cambian
+    /// la dirección del texto (U+202E…), y cualquier espacio que no sea el normal.
+    static func isPlain(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.properties.generalCategory {
+        case .control, .format, .lineSeparator, .paragraphSeparator, .unassigned, .privateUse, .surrogate:
+            return false
+        case .spaceSeparator:
+            return scalar == " "
+        default:
+            return true
+        }
+    }
+
+    /// Una notificación solo enseña unas pocas líneas: más largo que esto, sin botones.
+    public static let maxNotified = 100
 
     // MARK: - Cliente (el proceso que lanza Claude Code)
 

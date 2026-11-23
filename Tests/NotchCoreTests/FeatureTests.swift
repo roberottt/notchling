@@ -170,3 +170,10 @@ import Testing
     let edit = line(["session_id": "s", "tool_name": "Write", "tool_input": ["file_path": "/a", "content": "x"]])
     #expect(PermissionHook.ask(request: edit, socket: "/nonexistent/socket") == .ask)
 }
+
+@Test func invisibleOrReversingCharactersGoToTheTerminal() {
+    for command in ["ls \u{202E}fdp.exe", "echo a\u{200B}b", "rm\tfile", "echo\u{00A0}hi", "echo \u{2028}x"] {
+        #expect(PermissionHook.fullText(tool: "Bash", input: ["command": command]) == nil, "\(command.debugDescription)")
+    }
+    #expect(PermissionHook.fullText(tool: "Bash", input: ["command": "echo 'café ñandú'"]) != nil)
+}
