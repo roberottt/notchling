@@ -18,11 +18,30 @@ private final class ActionItem: NSMenuItem {
     @MainActor @objc private func run() { handler() }
 }
 
+/// Lo que se puede hacer con una sesión desde los menús.
+@MainActor
+struct SessionActions {
+    var select: (Session) -> Void
+    var decide: (Session, PermissionHook.Decision) -> Void
+    var togglePin: (Session) -> Void
+    var toggleMute: (Session) -> Void
+    var rename: (Session) -> Void
+    var toggleHidden: (Session) -> Void
+    var isHidden: (Session) -> Bool
+}
+
+/// Lo que cambia algo fuera de las preferencias.
+@MainActor
+struct AppSettings {
+    var approvalsInstalled: Bool
+    var toggleApprovals: () -> Void
+}
+
 @MainActor
 enum AppMenu {
     static func fill(
         _ menu: NSMenu, sessions: [Session], displays: [Display], preferences: Preferences,
-        select: @escaping @MainActor (Session) -> Void
+        actions: SessionActions, settings: AppSettings
     ) {
         menu.removeAllItems()
         if sessions.isEmpty {
@@ -31,8 +50,11 @@ enum AppMenu {
             menu.addItem(item)
         }
         for session in sessions {
-            let item = ActionItem("\(session.project) — \(session.state.label)") { select(session) }
+            var title = "\(session.title.map { "\(session.project) · \($0)" } ?? session.project) — \(session.state.label)"
+            if actions.isHidden(session) { title += " (" + tr("oculta", "hidden") + ")" }
+            let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
             item.image = dot(session.state.color)
+            item.submenu = sessionMenu(session, actions: actions)
             menu.addItem(item)
         }
         menu.addItem(.separator())
@@ -58,12 +80,56 @@ enum AppMenu {
         menu.addItem(ActionItem(tr("Ocultar", "Hide"), checked: preferences.hidden) { preferences.hidden.toggle() })
         menu.addItem(.separator())
 
+        menu.addItem(ActionItem(tr("Notificaciones", "Notifications"), checked: preferences.notifications) {
+            preferences.notifications.toggle()
+        })
+        let sound = ActionItem(tr("Sonido en las notificaciones", "Notification sound"), checked: preferences.notificationSound) {
+            preferences.notificationSound.toggle()
+        }
+        sound.isEnabled = preferences.notifications
+        menu.addItem(sound)
+        menu.addItem(ActionItem(
+            tr("Atajo \(HotKey.label): ir a quien te necesita", "\(HotKey.label) shortcut: jump to who needs you"),
+            checked: preferences.hotKey
+        ) { preferences.hotKey.toggle() })
+        if Bundle.main.bundleIdentifier != nil {
+            menu.addItem(ActionItem(
+                tr("Aprobar permisos desde la isla", "Approve permissions from the island"),
+                checked: settings.approvalsInstalled, handler: settings.toggleApprovals))
+        }
+        menu.addItem(.separator())
+
         if Bundle.main.bundleIdentifier != nil {
             menu.addItem(ActionItem(tr("Abrir al iniciar sesión", "Open at login"), checked: SMAppService.mainApp.status == .enabled) {
                 toggleLoginItem()
             })
         }
         menu.addItem(ActionItem(tr("Salir de Notchling", "Quit Notchling")) { NSApp.terminate(nil) })
+    }
+
+    /// Menú de una sesión: submenú en la barra y clic derecho sobre su fila.
+    static func sessionMenu(_ session: Session, actions: SessionActions) -> NSMenu {
+        let menu = NSMenu()
+        menu.addItem(ActionItem(tr("Ir a la sesión", "Go to session")) { actions.select(session) })
+        if session.awaitingDecision {
+            menu.addItem(.separator())
+            let heading = NSMenuItem(title: session.detail, action: nil, keyEquivalent: "")
+            heading.isEnabled = false
+            menu.addItem(heading)
+            menu.addItem(ActionItem(tr("Permitir", "Allow")) { actions.decide(session, .allow) })
+            menu.addItem(ActionItem(tr("Denegar", "Deny")) { actions.decide(session, .deny) })
+            menu.addItem(ActionItem(tr("Contestar en la terminal", "Answer in the terminal")) { actions.decide(session, .ask) })
+        }
+        menu.addItem(.separator())
+        menu.addItem(ActionItem(tr("Fijar arriba", "Pin to top"), checked: session.pinned) { actions.togglePin(session) })
+        menu.addItem(ActionItem(
+            session.muted ? tr("Volver a avisar", "Unmute") : tr("Silenciar 1 hora", "Mute for 1 hour")
+        ) { actions.toggleMute(session) })
+        menu.addItem(ActionItem(tr("Renombrar…", "Rename…")) { actions.rename(session) })
+        menu.addItem(ActionItem(
+            actions.isHidden(session) ? tr("Mostrar en la isla", "Show in the island") : tr("Ocultar de la isla", "Hide from the island")
+        ) { actions.toggleHidden(session) })
+        return menu
     }
 
     private static func positionMenu(displays: [Display], preferences: Preferences) -> NSMenu {

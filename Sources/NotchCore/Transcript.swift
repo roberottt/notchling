@@ -107,7 +107,17 @@ public struct Transcript: Sendable {
     public private(set) var lastEvent: Date?
     public private(set) var lastText: String?
     public private(set) var activity = Activity.thinking
+    /// El último mensaje de Claude con más margen que `lastText`, para la vista previa.
+    public private(set) var lastMessage: String?
+    public private(set) var contextTokens: Int?
     private var hasCustomTitle = false
+    /// Tareas por identificador: si están hechas.
+    private var taskList: [(id: String, done: Bool)] = []
+    private var createdTasks = 0
+
+    public var tasks: TaskProgress? {
+        taskList.isEmpty ? nil : TaskProgress(done: taskList.filter(\.done).count, total: taskList.count)
+    }
 
     public init() {}
 
@@ -190,6 +200,11 @@ public struct Transcript: Sendable {
         let isError = entry["isApiErrorMessage"] as? Bool == true
         if !isError, message["model"] as? String == "<synthetic>" { return }
         lastEvent = date ?? lastEvent
+        if let usage = message["usage"] as? [String: Any] {
+            let keys = ["input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"]
+            let total = keys.reduce(0) { $0 + ((usage[$1] as? Int) ?? 0) }
+            if total > 0 { contextTokens = total }
+        }
 
         for block in blocks {
             switch block["type"] as? String {
@@ -198,13 +213,16 @@ public struct Transcript: Sendable {
             case "text":
                 if let text = block["text"] as? String, !text.isEmpty {
                     lastText = text.singleLine()
+                    lastMessage = text.singleLine(limit: 900)
                     activity = .writing
                 }
             case "tool_use":
                 guard let id = block["id"] as? String, let name = block["name"] as? String,
                       !pending.contains(where: { $0.id == id })
                 else { continue }
-                pending.append(ToolCall(id: id, name: name, input: block["input"] as? [String: Any] ?? [:]))
+                let input = block["input"] as? [String: Any] ?? [:]
+                pending.append(ToolCall(id: id, name: name, input: input))
+                trackTasks(name: name, input: input)
             default:
                 break
             }
@@ -219,6 +237,30 @@ public struct Transcript: Sendable {
             outcome = .completed
         } else {
             outcome = .running
+        }
+    }
+
+    /// TodoWrite manda la lista entera; TaskCreate y TaskUpdate la cambian de una en una
+    /// (Claude Code numera las tareas creadas desde 1).
+    private mutating func trackTasks(name: String, input: [String: Any]) {
+        switch name {
+        case "TodoWrite":
+            let todos = input["todos"] as? [[String: Any]] ?? []
+            taskList = todos.enumerated().map { (String($0.offset), $0.element["status"] as? String == "completed") }
+        case "TaskCreate":
+            createdTasks += 1
+            taskList.append((String(createdTasks), false))
+        case "TaskUpdate":
+            let id = (input["taskId"] as? String) ?? (input["taskId"] as? Int).map(String.init)
+            guard let id, let index = taskList.firstIndex(where: { $0.id == id }) else { return }
+            switch input["status"] as? String {
+            case "completed": taskList[index].done = true
+            case "deleted": taskList.remove(at: index)
+            case "pending", "in_progress": taskList[index].done = false
+            default: break
+            }
+        default:
+            break
         }
     }
 }
@@ -265,4 +307,5 @@ final class TranscriptReader {
         for line in lines where !line.isEmpty { transcript.consume(line: Data(line)) }
         offset = start + UInt64(end - data.startIndex) + 1
     }
+
 }

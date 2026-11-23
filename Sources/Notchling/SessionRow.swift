@@ -13,7 +13,11 @@ final class SessionRow {
     private let time = Label(size: 11, weight: .medium, color: NSColor(white: 0.6, alpha: 1), align: .right, digits: true)
     private let host = Label(size: 10, weight: .regular, color: NSColor(white: 0.45, alpha: 1), align: .right)
 
-    var labels: [Label] { [title, status, detail, time, host] }
+    private let buttons = Decision.allCases.map { DecisionButton($0) }
+
+    var labels: [Label] { [title, status, detail, time, host] + buttons.map(\.label) }
+
+    typealias Decision = PermissionHook.Decision
 
     init() {
         highlight.backgroundColor = NSColor(white: 1, alpha: 0.11).cgColor
@@ -22,7 +26,21 @@ final class SessionRow {
         highlight.opacity = 0
         layer.addSublayer(highlight)
         layer.addSublayer(glyph.layer)
-        for label in labels { layer.addSublayer(label.layer) }
+        for label in [title, status, detail, time, host] { layer.addSublayer(label.layer) }
+        for button in buttons { layer.addSublayer(button.layer) }
+    }
+
+    /// Botones de un permiso pendiente, en coordenadas de la fila (Y hacia abajo).
+    static func buttonFrames(rowWidth: CGFloat, rowHeight: CGFloat) -> [(Decision, CGRect)] {
+        var right = rowWidth - 18
+        let midY = rowHeight / 2 + 10
+        return Decision.allCases.reversed().map { decision in
+            let width = DecisionButton.width(decision)
+            right -= width
+            let frame = CGRect(x: right, y: midY - 10, width: width, height: 20)
+            right -= 6
+            return (decision, frame)
+        }.reversed()
     }
 
     func update(session: Session, hostName: String, hovered: Bool, frame: CGRect, now: Date, animated: Bool) {
@@ -46,16 +64,40 @@ final class SessionRow {
         title.set(name, animated: false)
         title.place(x: 50, midY: top, width: right - timeWidth - 58, animated: false)
 
-        let hostWidth = hostName.isEmpty ? 0 : min(host.width(of: hostName), 110)
-        host.set(hostName, animated: false)
+        let deciding = session.awaitingDecision
+        var notes: [String] = []
+        if let tokens = session.contextTokens { notes.append(Self.tokens(tokens)) }
+        if session.muted { notes.append(tr("silenciada", "muted")) }
+        if !hostName.isEmpty { notes.append(hostName) }
+        let note = deciding ? "" : notes.joined(separator: " · ")
+        let hostWidth = note.isEmpty ? 0 : min(host.width(of: note), 170)
+        host.set(note, animated: false)
         host.place(x: right, midY: bottom, width: hostWidth, animated: false)
+
+        let frames = Self.buttonFrames(rowWidth: frame.width, rowHeight: frame.height)
+        for (button, (_, rect)) in zip(buttons, frames) { button.place(rect, visible: deciding) }
+        let detailRight = deciding ? (frames.first?.1.minX ?? right) - 8 : right - hostWidth - 8
 
         let statusWidth = status.width(of: session.state.label)
         status.set(session.state.label, color: session.state.color, animated: false)
         status.place(x: 50, midY: bottom, width: statusWidth, animated: false)
 
-        detail.set(session.detail, animated: false)
-        detail.place(x: 56 + statusWidth, midY: bottom, width: right - hostWidth - 64 - statusWidth, animated: false)
+        let progress = session.tasks.map { "\($0.done)/\($0.total) · " } ?? ""
+        detail.set(progress + session.detail, animated: false)
+        detail.place(x: 56 + statusWidth, midY: bottom, width: detailRight - 56 - statusWidth, animated: false)
+    }
+
+    /// 84k ctx, 1.2M ctx
+    static func tokens(_ count: Int) -> String {
+        let value: String
+        if count >= 1_000_000 {
+            value = String(format: "%.1fM", Double(count) / 1_000_000)
+        } else if count >= 1000 {
+            value = "\(count / 1000)k"
+        } else {
+            value = "\(count)"
+        }
+        return value + " ctx"
     }
 
     static func elapsed(_ interval: TimeInterval) -> String {
@@ -64,5 +106,53 @@ final class SessionRow {
         if seconds < 3600 { return String(format: "%d:%02d", seconds / 60, seconds % 60) }
         if seconds < 86400 { return "\(seconds / 3600) h \(seconds % 3600 / 60) min" }
         return "\(seconds / 86400) d"
+    }
+}
+
+/// Píldora de Permitir / Denegar / Terminal.
+@MainActor
+private final class DecisionButton {
+    let layer = CALayer()
+    let label: Label
+    private let decision: PermissionHook.Decision
+
+    init(_ decision: PermissionHook.Decision) {
+        self.decision = decision
+        label = Label(size: 11, weight: .semibold, color: Self.color(decision), align: .center)
+        layer.cornerRadius = 10
+        layer.cornerCurve = .continuous
+        layer.backgroundColor = Self.color(decision).withAlphaComponent(0.18).cgColor
+        layer.addSublayer(label.layer)
+        layer.isHidden = true
+    }
+
+    static func title(_ decision: PermissionHook.Decision) -> String {
+        switch decision {
+        case .allow: tr("Permitir", "Allow")
+        case .deny: tr("Denegar", "Deny")
+        case .ask: "Terminal"
+        }
+    }
+
+    static func width(_ decision: PermissionHook.Decision) -> CGFloat {
+        let font = NSFont.systemFont(ofSize: 11, weight: .semibold)
+        return ceil((title(decision) as NSString).size(withAttributes: [.font: font]).width) + 20
+    }
+
+    static func color(_ decision: PermissionHook.Decision) -> NSColor {
+        switch decision {
+        case .allow: SessionState.done.color
+        case .deny: SessionState.error.color
+        case .ask: NSColor(white: 0.8, alpha: 1)
+        }
+    }
+
+    func place(_ frame: CGRect, visible: Bool) {
+        layer.isHidden = !visible
+        guard visible else { return }
+        layer.frame = frame
+        label.set(Self.title(decision), animated: false)
+        label.layer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        label.place(x: frame.width / 2, midY: frame.height / 2, width: frame.width, animated: false)
     }
 }

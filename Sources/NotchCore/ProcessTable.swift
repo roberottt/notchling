@@ -7,13 +7,16 @@ public struct ProcessEntry: Sendable {
     public var uid: UInt32
     public var name: String
     public var started: Date
+    /// Terminal de control, p. ej. "/dev/ttys003". Sirve para encontrar la pestaña exacta.
+    public var tty: String?
 
-    public init(pid: Int32, parent: Int32, uid: UInt32, name: String, started: Date) {
+    public init(pid: Int32, parent: Int32, uid: UInt32, name: String, started: Date, tty: String? = nil) {
         self.pid = pid
         self.parent = parent
         self.uid = uid
         self.name = name
         self.started = started
+        self.tty = tty
     }
 }
 
@@ -56,12 +59,15 @@ public struct SystemProcesses: ProcessSource {
                 String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self)
             }
             let time = info.kp_proc.p_un.__p_starttime
+            let device = info.kp_eproc.e_tdev
+            let tty = device == -1 ? nil : devname(device, S_IFCHR).map { "/dev/" + String(cString: $0) }
             result[info.kp_proc.p_pid] = ProcessEntry(
                 pid: info.kp_proc.p_pid,
                 parent: info.kp_eproc.e_ppid,
                 uid: info.kp_eproc.e_ucred.cr_uid,
                 name: name,
-                started: Date(timeIntervalSince1970: Double(time.tv_sec) + Double(time.tv_usec) / 1e6))
+                started: Date(timeIntervalSince1970: Double(time.tv_sec) + Double(time.tv_usec) / 1e6),
+                tty: tty)
         }
         return result
     }

@@ -12,6 +12,8 @@ final class IslandController: IslandViewDelegate {
     let panel = IslandPanel()
     var makeMenu: () -> NSMenu = { NSMenu() }
     var onSelect: (Session) -> Void = { _ in }
+    var onDecision: (Session, PermissionHook.Decision) -> Void = { _, _ in }
+    var makeSessionMenu: (Session) -> NSMenu = { _ in NSMenu() }
 
     private let view = IslandView(frame: .zero)
     private let preferences: Preferences
@@ -31,6 +33,11 @@ final class IslandController: IslandViewDelegate {
     /// Cambios recibidos con un menú abierto: se pintan al cerrarlo.
     private var pendingRender = false
     private var peekUntil: Date?
+    /// Abierta con el atajo: no se recoge porque nadie te necesite.
+    private var manualPeek = false
+    private let preview = PreviewPanel()
+    private var previewWork: DispatchWorkItem?
+    private var previewFor: String?
     private var pressedAt: CGPoint?
     private var drag: Drag?
     /// Alas recogidas dentro del notch para no tapar los menús de las apps.
@@ -72,8 +79,9 @@ final class IslandController: IslandViewDelegate {
             waitsForExit = false
             // Con un menú abierto se aplaza: desplegarse debajo lo estorbaría.
             if !menuOpen { setExpanded(true) }
-        } else if let until = peekUntil, now >= until || new.first?.state.needsUser != true {
+        } else if let until = peekUntil, now >= until || (new.first?.state.needsUser != true && !manualPeek) {
             peekUntil = nil
+            manualPeek = false
             if !hovering, !menuOpen { setExpanded(false) }
         }
 
@@ -147,6 +155,8 @@ final class IslandController: IslandViewDelegate {
             snapping: drag?.snapped != nil, compact: preferences.compact, yielding: yielding && drag == nil)
         view.render(content, animated: animated && !appearing)
 
+        updatePreview()
+
         if appearing {
             panel.alphaValue = 0
             panel.orderFrontRegardless()
@@ -154,6 +164,56 @@ final class IslandController: IslandViewDelegate {
                 context.duration = 0.25
                 panel.animator().alphaValue = 1
             }
+        }
+    }
+
+    /// La vista previa sale tras un momento sobre la misma fila y sigue a la isla mientras se repinta.
+    private func updatePreview() {
+        let visible = visibleSessions()
+        guard expanded, !menuOpen, drag == nil, let row = hoveredRow, row < visible.count,
+              let layout = current?.layout, let text = visible[row].lastMessage, !text.isEmpty
+        else {
+            previewWork?.cancel()
+            previewWork = nil
+            previewFor = nil
+            preview.hide()
+            return
+        }
+        let session = visible[row]
+        let heading = session.title.map { "\(session.project) · \($0)" } ?? session.project
+        let show = { [weak self] in
+            self?.preview.show(
+                heading: heading, text: text, anchor: layout.expanded, upward: layout.opensUpward, screen: layout.screen)
+        }
+        if previewFor == session.id {
+            if previewWork == nil { show() }
+            return
+        }
+        previewFor = session.id
+        previewWork?.cancel()
+        preview.hide()
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated {
+                self?.previewWork = nil
+                show()
+            }
+        }
+        previewWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45, execute: work)
+    }
+
+    /// Atajo de teclado: abre la lista unos segundos, o la cierra si ya estaba abierta.
+    func toggleList() {
+        guard current != nil, panel.isVisible, !menuOpen, drag == nil else { return }
+        if expanded {
+            peekUntil = nil
+            manualPeek = false
+            setExpanded(false)
+        } else {
+            waitsForExit = false
+            peekUntil = Date().addingTimeInterval(8)
+            manualPeek = true
+            setExpanded(true)
         }
     }
 
@@ -362,9 +422,14 @@ final class IslandController: IslandViewDelegate {
             setExpanded(true)
             return
         }
-        guard let row = current.layout.row(at: NSEvent.mouseLocation) else { return }
+        let mouse = NSEvent.mouseLocation
+        guard let row = current.layout.row(at: mouse) else { return }
         let visible = visibleSessions()
         guard row < visible.count else { return }
+        if visible[row].awaitingDecision, let decision = decision(at: mouse, row: row, layout: current.layout) {
+            onDecision(visible[row], decision)
+            return
+        }
         waitsForExit = true
         peekUntil = nil
         setExpanded(false)
@@ -377,11 +442,27 @@ final class IslandController: IslandViewDelegate {
         render(animated: true)
     }
 
+    private func decision(at mouse: CGPoint, row: Int, layout: IslandLayout) -> PermissionHook.Decision? {
+        let box = layout.expanded
+        let point = CGPoint(
+            x: mouse.x - box.minX,
+            y: box.maxY - mouse.y - layout.headerHeight - IslandLayout.padding - CGFloat(row) * IslandLayout.rowHeight)
+        return SessionRow.buttonFrames(rowWidth: box.width, rowHeight: IslandLayout.rowHeight)
+            .first { $0.1.insetBy(dx: -3, dy: -5).contains(point) }?.0
+    }
+
     func showMenu(at point: NSPoint, in view: NSView) {
+        // Sobre una fila, el menú es el de esa sesión. Se decide antes de que la isla se recoja.
+        var session: Session?
+        if expanded, let row = current?.layout.row(at: NSEvent.mouseLocation) {
+            let visible = visibleSessions()
+            if row < visible.count { session = visible[row] }
+        }
         whenFocused { [weak self] in
             guard let self else { return }
             self.menuVisibilityChanged(open: true)
-            self.makeMenu().popUp(positioning: nil, at: point, in: view)
+            let menu = session.map(self.makeSessionMenu) ?? self.makeMenu()
+            menu.popUp(positioning: nil, at: point, in: view)
             self.menuVisibilityChanged(open: false)
         }
     }

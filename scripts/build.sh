@@ -28,6 +28,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>
+    <key>NSAppleEventsUsageDescription</key><string>Notchling selects the exact Terminal or iTerm2 tab of a session when you click it.</string>
 </dict>
 </plist>
 PLIST

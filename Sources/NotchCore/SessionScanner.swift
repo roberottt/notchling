@@ -187,7 +187,12 @@ public final class SessionScanner {
             title: record?.name ?? transcript?.title,
             state: state, detail: detail, since: since, startedAt: started,
             outcome: transcript?.outcome,
-            ancestors: ancestors(of: process.pid, in: table))
+            ancestors: ancestors(of: process.pid, in: table),
+            sessionID: record?.sessionID ?? path.map { (($0 as NSString).lastPathComponent as NSString).deletingPathExtension },
+            tty: process.tty,
+            tasks: transcript?.tasks,
+            contextTokens: transcript?.contextTokens,
+            lastMessage: transcript?.lastMessage)
     }
 
     static func projectName(_ directory: String?) -> String {

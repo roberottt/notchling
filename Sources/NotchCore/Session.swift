@@ -36,6 +36,17 @@ public enum SessionState: Int, CaseIterable, Comparable, Encodable, Sendable {
     }
 }
 
+/// Avance de la lista de tareas de Claude.
+public struct TaskProgress: Equatable, Encodable, Sendable {
+    public var done: Int
+    public var total: Int
+
+    public init(done: Int, total: Int) {
+        self.done = done
+        self.total = total
+    }
+}
+
 public struct Session: Identifiable, Equatable, Encodable, Sendable {
     public var id: String
     public var pid: Int32
@@ -49,10 +60,26 @@ public struct Session: Identifiable, Equatable, Encodable, Sendable {
     public var outcome: TurnOutcome?
     /// Procesos padre, del más cercano al más lejano. Sirve para encontrar la app que aloja la sesión.
     public var ancestors: [Int32]
+    /// Identificador de la conversación en Claude Code; se conserva al reanudarla.
+    public var sessionID: String?
+    public var tty: String?
+    public var tasks: TaskProgress?
+    /// Tokens que ocupa el contexto tras la última respuesta.
+    public var contextTokens: Int?
+    /// El último mensaje de Claude, más largo que el detalle.
+    public var lastMessage: String?
+
+    // Lo decide la app, no el escáner.
+    public var pinned = false
+    public var muted = false
+    /// Hay un permiso esperando respuesta desde la isla.
+    public var awaitingDecision = false
 
     public init(
         id: String, pid: Int32, project: String, title: String? = nil, state: SessionState,
-        detail: String = "", since: Date, startedAt: Date, outcome: TurnOutcome? = nil, ancestors: [Int32] = []
+        detail: String = "", since: Date, startedAt: Date, outcome: TurnOutcome? = nil, ancestors: [Int32] = [],
+        sessionID: String? = nil, tty: String? = nil, tasks: TaskProgress? = nil, contextTokens: Int? = nil,
+        lastMessage: String? = nil
     ) {
         self.id = id
         self.pid = pid
@@ -64,7 +91,15 @@ public struct Session: Identifiable, Equatable, Encodable, Sendable {
         self.startedAt = startedAt
         self.outcome = outcome
         self.ancestors = ancestors
+        self.sessionID = sessionID
+        self.tty = tty
+        self.tasks = tasks
+        self.contextTokens = contextTokens
+        self.lastMessage = lastMessage
     }
+
+    /// Clave estable para recordar preferencias de la sesión entre reinicios.
+    public var key: String { sessionID ?? id }
 }
 
 public enum TurnOutcome: String, Encodable, Sendable {

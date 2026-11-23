@@ -8,7 +8,9 @@ final class Preferences {
 
     init(store: UserDefaults) {
         self.store = store
-        store.register(defaults: ["autoExpand": true, "yieldToMenus": true])
+        store.register(defaults: [
+            "autoExpand": true, "yieldToMenus": true, "notifications": true, "notificationSound": true, "hotKey": true,
+        ])
         Language.current = language
     }
 
@@ -41,6 +43,41 @@ final class Preferences {
     var hidden: Bool {
         get { store.bool(forKey: "hidden") }
         set { save(newValue, "hidden") }
+    }
+
+    var notifications: Bool {
+        get { store.bool(forKey: "notifications") }
+        set { save(newValue, "notifications") }
+    }
+    var notificationSound: Bool {
+        get { store.bool(forKey: "notificationSound") }
+        set { save(newValue, "notificationSound") }
+    }
+    var hotKey: Bool {
+        get { store.bool(forKey: "hotKey") }
+        set { save(newValue, "hotKey") }
+    }
+
+    // Por sesión, con la clave de la conversación para que sobreviva a reinicios.
+    var pinned: Set<String> {
+        get { Set(store.stringArray(forKey: "pinned") ?? []) }
+        set { saveList(newValue, "pinned") }
+    }
+    var hiddenSessions: Set<String> {
+        get { Set(store.stringArray(forKey: "hiddenSessions") ?? []) }
+        set { saveList(newValue, "hiddenSessions") }
+    }
+    var names: [String: String] {
+        get { store.dictionary(forKey: "names") as? [String: String] ?? [:] }
+        set {
+            store.set(newValue, forKey: "names")
+            onChange?()
+        }
+    }
+
+    private func saveList(_ value: Set<String>, _ key: String) {
+        store.set(value.sorted(), forKey: key)
+        onChange?()
     }
 
     /// Cada combinación de monitores recuerda su posición.

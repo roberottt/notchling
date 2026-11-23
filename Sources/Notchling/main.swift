@@ -14,6 +14,15 @@ if options.contains("--dump") {
     exit(0)
 }
 
+if options.contains(PermissionHook.flag) {
+    // Lo lanza Claude Code: pasa la petición a la app y escribe su decisión. Nunca falla.
+    let request = FileHandle.standardInput.readDataToEndOfFile()
+    if let output = PermissionHook.output(PermissionHook.ask(request: request)) {
+        FileHandle.standardOutput.write(output)
+    }
+    exit(0)
+}
+
 MainActor.assumeIsolated {
     let app = NSApplication.shared
     let delegate = AppDelegate(demo: options.contains("--demo"))
