@@ -64,16 +64,14 @@ public enum PermissionHook {
         }
     }
 
-    /// Lo que se ve es lo que se ejecuta: fuera caracteres de control, invisibles o que cambian
-    /// la dirección del texto (U+202E…), y cualquier espacio que no sea el normal.
+    /// Lo que se ve es lo que se ejecuta. Lista blanca, no negra: ASCII imprimible (con el espacio normal)
+    /// y las letras de Latin-1 (á, ñ, ç…). Todo lo demás —marcas combinables, rellenos invisibles,
+    /// texto de derecha a izquierda, controles— se contesta en la terminal.
     static func isPlain(_ scalar: Unicode.Scalar) -> Bool {
-        switch scalar.properties.generalCategory {
-        case .control, .format, .lineSeparator, .paragraphSeparator, .unassigned, .privateUse, .surrogate:
-            return false
-        case .spaceSeparator:
-            return scalar == " "
-        default:
-            return true
+        switch scalar.value {
+        case 0x20...0x7E: true
+        case 0xC0...0xFF: scalar.value != 0xD7 && scalar.value != 0xF7 // sin × ni ÷
+        default: false
         }
     }
 

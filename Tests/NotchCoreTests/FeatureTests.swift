@@ -172,7 +172,11 @@ import Testing
 }
 
 @Test func invisibleOrReversingCharactersGoToTheTerminal() {
-    for command in ["ls \u{202E}fdp.exe", "echo a\u{200B}b", "rm\tfile", "echo\u{00A0}hi", "echo \u{2028}x"] {
+    let tricks = [
+        "ls \u{202E}fdp.exe", "echo a\u{200B}b", "rm\tfile", "echo\u{00A0}hi", "echo \u{2028}x",
+        "rm -rf \u{3164}/", "echo \u{2800}", "rm -r\u{0301}f x", "echo \u{05D0}", "echo \u{115F}", "echo a\u{00D7}b",
+    ]
+    for command in tricks {
         #expect(PermissionHook.fullText(tool: "Bash", input: ["command": command]) == nil, "\(command.debugDescription)")
     }
     #expect(PermissionHook.fullText(tool: "Bash", input: ["command": "echo 'café ñandú'"]) != nil)
