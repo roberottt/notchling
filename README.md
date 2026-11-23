@@ -30,13 +30,20 @@ You start a long task in Claude Code, switch to something else, and come back te
 
 ### Download
 
-Grab `Notchling.zip` from the [latest release](https://github.com/roberottt/notchling/releases/latest), unzip it and move `Notchling.app` to your Applications folder. Requires macOS 14 or later, on Apple silicon or Intel.
+Requires macOS 14 or later, on Apple silicon or Intel.
 
-The app isn't notarized yet, so macOS blocks it the first time. Open it once, then go to **System Settings → Privacy & Security** and click **Open Anyway**. Or, from Terminal:
+1. Download `Notchling.zip` from the [latest release](https://github.com/roberottt/notchling/releases/latest) and unzip it.
+2. Move `Notchling.app` to your Applications folder.
+3. **Before opening it**, run this in Terminal:
 
-```sh
-xattr -dr com.apple.quarantine /Applications/Notchling.app
-```
+   ```sh
+   xattr -dr com.apple.quarantine /Applications/Notchling.app
+   ```
+
+4. Open Notchling.
+
+> [!IMPORTANT]
+> Step 3 is needed because the app isn't notarized by Apple yet. Without it, macOS says it *"could not verify that Notchling is free of malware"* and won't open it. The command only removes the "downloaded from the internet" flag from Notchling. If you skipped it and already saw that warning, run the command and open the app again, or go to **System Settings → Privacy & Security** and click **Open Anyway**.
 
 ### Build from source
 
