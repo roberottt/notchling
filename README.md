@@ -1,72 +1,107 @@
+<div align="center">
+
 # Notchling
 
-Muestra a los lados del notch, o en una ventanita flotante, qué está haciendo cada sesión de Claude Code del Mac.
+**Your Claude Code sessions, living in the MacBook notch.**
 
-## Instalar
+Stop alt-tabbing to check whether Claude is done, stuck, or waiting for you.
+Notchling turns the notch into a tiny status island that tells you at a glance — and taps you on the shoulder when a session needs you.
+
+![Notchling expanding when a session asks for permission](docs/demo.gif)
+
+</div>
+
+## Why
+
+You start a long task in Claude Code, switch to something else, and come back ten minutes later to find it has been waiting for a permission prompt the whole time. Notchling fixes that:
+
+- **See everything at a glance.** The most urgent session sits next to the notch; every other one gets its own colored dot.
+- **Never miss a prompt.** When Claude asks for permission, has a question, or wants you to review a plan, the island expands by itself.
+- **Jump straight there.** Click a session and the terminal or editor that hosts it comes to the front.
+- **Zero setup.** No hooks, no config changes, no network. Install it and it just finds your sessions.
+
+<p align="center">
+  <img src="docs/collapsed.png" width="620" alt="Collapsed island showing the Working, Permission and Question states">
+</p>
+
+## Install
+
+Requires macOS 14 or later and the Command Line Tools (`xcode-select --install`). Xcode is not needed.
 
 ```sh
-scripts/build.sh --install   # la copia a ~/Applications y la abre
+git clone https://github.com/roberottt/notchling.git
+cd notchling
+scripts/build.sh --install   # builds the app, copies it to ~/Applications and opens it
 ```
 
-Requiere macOS 14 o posterior y las Command Line Tools (`xcode-select --install`); no hace falta Xcode.
-Para que arranque con el Mac: icono de la barra de menús → **Abrir al iniciar sesión**.
+To start it with your Mac: menu bar icon → **Open at login**.
 
-## Estados
+## What it shows
 
-| Estado | Significado | Animación |
+<p align="center">
+  <img src="docs/expanded.png" width="620" alt="Expanded island listing three Claude Code sessions">
+</p>
+
+| State | Meaning | Animation |
 | --- | --- | --- |
-| Permiso | Espera que apruebes una acción | Candado que se agita y borde pulsante |
-| Pregunta | Espera una respuesta | Bocadillo que bota y borde pulsante |
-| Revisar plan | Hay un plan por aprobar | Portapapeles que late y borde pulsante |
-| Te necesita | Espera por otro motivo | Aviso que bota y borde pulsante |
-| Error | El turno terminó con un error de la API | Triángulo rojo |
-| Menú abierto | Hay un diálogo abierto en la sesión | Icono fijo |
-| Listo | Acaba de terminar (5 min o hasta que pulses) | Check que se dibuja |
-| Trabajando | Está pensando o usando herramientas | Anillo giratorio y brillo en el texto |
-| 2º plano | Sigue corriendo un comando en segundo plano | Anillo lento |
-| En espera | No está haciendo nada | Se encoge a lo mínimo |
-| Detectada | Hay sesión, pero no publica su estado | Icono fijo |
+| 🔒 **Permission** | Waiting for you to approve an action | Shaking padlock, pulsing border |
+| 💬 **Question** | Waiting for an answer | Bouncing bubble, pulsing border |
+| 📋 **Review plan** | A plan is ready for your approval | Beating clipboard, pulsing border |
+| ❗ **Needs you** | Waiting for some other reason | Bouncing alert, pulsing border |
+| ⚠️ **Error** | The turn ended with an API error | Red triangle |
+| 🗂️ **Menu open** | A dialog is open inside the session | Static icon |
+| ✅ **Done** | Just finished (for 5 min or until you click) | Check mark drawing itself |
+| 🔄 **Working** | Thinking or using tools | Spinning ring, shimmering text |
+| ⏳ **Background** | A background command is still running | Slow ring |
+| 💤 **Idle** | Doing nothing | Shrinks to the minimum |
+| ❔ **Detected** | Session found, but it doesn't publish its state | Static icon |
 
-Con varias sesiones manda la más urgente, y cada una tiene su punto de color.
+With several sessions, the most urgent one wins the spot next to the notch.
 
-## Uso
+## Using it
 
-- **Ratón encima:** despliega la lista (en el notch, pasa por el propio notch). Con más de seis sesiones, haz scroll.
-- **Barra de menús:** al llevar el ratón a la barra fuera del notch, las alas se recogen y dejan ver los menús de la app.
-  Vuelven al salir, salvo que haya un menú de otra app abierto. Se desactiva en **Apartarse de los menús de las apps**.
-- **Clic en una fila:** trae al frente la app que aloja la sesión.
-- **Arrastrar:** la mueve a cualquier punto de cualquier pantalla. Junto a un notch se acopla; desde el notch se despega.
-- **Clic derecho** o icono de la barra de menús: posición, modo compacto y demás opciones.
+- **Hover** to expand the list. With more than six sessions, scroll.
+- **Click a row** to bring the app hosting that session to the front.
+- **Drag** the island anywhere, on any screen. Near a notch it snaps in; pull it away to undock it.
+- **Menu bar:** move the pointer to the menu bar outside the notch and the island tucks its wings away so you can reach your app's menus. Toggle it with **Make way for app menus**.
+- **Right-click** or use the menu bar icon for position, compact mode, language (English / Español) and more.
 
-Posición automática: en el notch si solo usas la pantalla del portátil; arriba en el centro de la externa si hay una.
-Cada combinación de monitores recuerda la posición que elijas.
+Automatic placement: in the notch when you only use the laptop screen, top center of the external display when there is one. Each monitor setup remembers its own position.
 
-## Cómo funciona
+## How it works
 
-No usa hooks, no modifica `~/.claude` y no usa la red. Cada 0,4 s lee:
+Notchling is read-only and fully local. It doesn't install hooks, doesn't touch `~/.claude`, and never uses the network. Every 0.4 s it reads:
 
-1. `~/.claude/sessions/<pid>.json`, donde Claude Code publica el estado de cada sesión.
-2. La tabla de procesos, para descartar sesiones muertas y encontrar las que usan otro `CLAUDE_CONFIG_DIR`.
-3. Lo nuevo de cada transcript, para el título y la acción en curso.
+1. `~/.claude/sessions/<pid>.json`, where Claude Code publishes the state of each session.
+2. The process table, to drop dead sessions and find ones using a different `CLAUDE_CONFIG_DIR`.
+3. The new lines of each transcript, for the title and the current action.
 
-## Limitaciones
+It's a native app written in Swift with AppKit and Core Animation: no Electron, no web views.
 
-- El registro de sesiones es un **formato interno** de Claude Code (comprobado en 2.1.325–2.1.330) y puede cambiar.
-  Si cambia, hay que revisar `Sources/NotchCore/StateResolver.swift`.
-- Sin ese estado (versiones antiguas), se deduce del transcript y **los permisos no se pueden detectar**.
-  Este camino solo está probado con datos simulados.
-- No ve sesiones de la nube, SSH, contenedores, máquinas virtuales (como Cowork) ni otros usuarios del Mac.
-- El clic activa la app, no la pestaña concreta. Las sesiones `--bg` o dentro de tmux no tienen app que activar.
-- Junto al notch tapa los menús que lleguen hasta ahí mientras el ratón no esté en la barra de menús.
-- La firma es local: para distribuirla hace falta un Developer ID y notarizarla.
+## Limitations
 
-## Desarrollo
+- The session registry is an **internal format** of Claude Code (verified on 2.1.325–2.1.330) and may change. If it does, `Sources/NotchCore/StateResolver.swift` is the place to look.
+- Without that registry (older versions), state is inferred from the transcript and **permission prompts can't be detected**. This path has only been tested with simulated data.
+- It can't see sessions running in the cloud, over SSH, in containers or VMs, or under other macOS users.
+- Clicking activates the app, not the exact tab. `--bg` sessions and sessions inside tmux have no app to activate.
+- Next to the notch it covers any menu that reaches that far while the pointer isn't on the menu bar.
+- Builds are signed locally. Distributing a prebuilt app needs a Developer ID and notarization.
+
+## Development
 
 ```sh
 swift test
 scripts/build.sh
-build/Notchling.app/Contents/MacOS/Notchling --demo   # recorre los estados
-build/Notchling.app/Contents/MacOS/Notchling --dump   # lo que ve el detector, en JSON
+build/Notchling.app/Contents/MacOS/Notchling --demo   # cycles through every state with fake sessions
+build/Notchling.app/Contents/MacOS/Notchling --dump   # prints what the detector sees, as JSON
 ```
 
-`Sources/NotchCore` contiene la detección y la geometría; `Sources/Notchling`, la interfaz (AppKit + Core Animation).
+`Sources/NotchCore` holds detection and geometry; `Sources/Notchling` holds the interface.
+
+## Contributing
+
+Issues and pull requests are welcome. Every PR is reviewed and approved by the maintainer before it's merged.
+
+---
+
+<sub>Notchling is an independent project and is not affiliated with or endorsed by Anthropic.</sub>
